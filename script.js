@@ -313,3 +313,24 @@
 
   render();
 })();
+
+/* ===== SALE POPUP: START ===== */
+
+const salePopup = document.getElementById("salePopup");
+const closeSale = document.getElementById("closeSale");
+
+if (salePopup && closeSale) {
+  const hideSalePopup = () => { salePopup.style.display = "none"; };
+
+  closeSale.addEventListener("click", hideSalePopup);
+
+  salePopup.addEventListener("click", (event) => {
+    if (event.target === salePopup) hideSalePopup();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hideSalePopup();
+  });
+}
+
+/* ===== SALE POPUP: END ===== */
