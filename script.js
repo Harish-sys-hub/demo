@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "learnspace-notes-v1";
+  const THEME_KEY = "learnspace-theme";
   const DEFAULT_TOPICS = ["Python", "Git", "Playwright", "API Testing", "AI & ML", "System Design"];
   const $ = (selector) => document.querySelector(selector);
   const els = {
@@ -14,7 +15,8 @@
     noteTopic: $("#noteTopic"), noteTags: $("#noteTags"), noteSummary: $("#noteSummary"), noteBody: $("#noteBody"),
     imageUrl: $("#imageUrl"), imageAlt: $("#imageAlt"), deleteNoteBtn: $("#deleteNoteBtn"), saveStatus: $("#saveStatus"),
     previewDialog: $("#previewDialog"), previewContent: $("#previewContent"), editFromPreviewBtn: $("#editFromPreviewBtn"),
-    topicDialog: $("#topicDialog"), topicForm: $("#topicForm"), topicName: $("#topicName"), importInput: $("#importInput")
+    topicDialog: $("#topicDialog"), topicForm: $("#topicForm"), topicName: $("#topicName"), importInput: $("#importInput"),
+    clearSearchBtn: $("#clearSearchBtn"), themeToggle: $("#themeToggle"), toast: $("#toast")
   };
 
   let state = loadState();
@@ -22,6 +24,22 @@
   let activeTopic = "";
   let editingId = null;
   let previewingId = null;
+  let toastTimer;
+
+  function showToast(message) {
+    els.toast.textContent = message;
+    els.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove("show"), 2600);
+  }
+  function applyTheme(theme) {
+    const dark = theme === "dark";
+    document.body.classList.toggle("dark-theme", dark);
+    els.themeToggle.textContent = dark ? "☀" : "☾";
+    const label = dark ? "Switch to light mode" : "Switch to dark mode";
+    els.themeToggle.setAttribute("aria-label", label);
+    els.themeToggle.title = label;
+  }
 
   function makeId() {
     return "note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -118,7 +136,9 @@
       const hasSearch = Boolean(els.searchInput.value.trim());
       els.emptyTitle.textContent = hasSearch ? "No matching notes" : "Your notebook starts here";
       els.emptyMessage.textContent = hasSearch ? "Try another search term or switch to a different topic." : "Create your first note and capture something you learned today.";
+      els.clearSearchBtn.hidden = !hasSearch;
     }
+    else els.clearSearchBtn.hidden = true;
     els.notesGrid.innerHTML = notes.map(note => {
       const imageURL = safeImageURL(note.imageUrl);
       const tags = (note.tags || []).slice(0, 4).map(tag => `<span class="tag">#${escapeHTML(tag)}</span>`).join("");
@@ -171,13 +191,13 @@
     };
     if (existing) state.notes = state.notes.map(item => item.id === existing.id ? note : item);
     else state.notes.unshift(note);
-    persist(); closeEditor(); render();
+    persist(); closeEditor(); render(); showToast(existing ? "Note updated" : "Note created");
   }
   function deleteNote(id) {
     const note = state.notes.find(item => item.id === id);
     if (!note || !confirm(`Delete "${note.title}"? This cannot be undone unless you have a backup.`)) return;
     state.notes = state.notes.filter(item => item.id !== id);
-    persist(); closeEditor(); els.previewDialog.close(); render();
+    persist(); closeEditor(); els.previewDialog.close(); render(); showToast("Note deleted");
   }
   function markdownToHTML(markdown) {
     // Lightweight Markdown renderer for personal notes. Raw HTML is escaped.
@@ -250,7 +270,7 @@
             favorite: Boolean(note.favorite), createdAt: note.createdAt || new Date().toISOString(), updatedAt: note.updatedAt || new Date().toISOString()
           }))
         };
-        persist(); setFilter("all"); alert("Backup imported successfully.");
+        persist(); setFilter("all"); showToast("Backup imported successfully");
       } catch (error) { alert("Could not import backup: " + error.message); }
       finally { els.importInput.value = ""; }
     };
@@ -304,33 +324,23 @@
     if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openPreview(card.dataset.openNote); }
   });
   els.searchInput.addEventListener("input", renderNotes);
+  els.clearSearchBtn.addEventListener("click", () => {
+    els.searchInput.value = "";
+    els.searchInput.focus();
+    renderNotes();
+  });
   els.sortSelect.addEventListener("change", renderNotes);
+  els.themeToggle.addEventListener("click", () => {
+    const theme = document.body.classList.contains("dark-theme") ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, theme);
+    applyTheme(theme);
+  });
   $("#exportBtn").addEventListener("click", exportBackup);
   els.importInput.addEventListener("change", () => importBackup(els.importInput.files[0]));
   [els.editorDialog, els.previewDialog, els.topicDialog].forEach(dialog => dialog.addEventListener("click", event => {
     if (event.target === dialog) dialog.close();
   }));
 
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
   render();
 })();
-
-/* ===== SALE POPUP: START ===== */
-
-const salePopup = document.getElementById("salePopup");
-const closeSale = document.getElementById("closeSale");
-
-if (salePopup && closeSale) {
-  const hideSalePopup = () => { salePopup.style.display = "none"; };
-
-  closeSale.addEventListener("click", hideSalePopup);
-
-  salePopup.addEventListener("click", (event) => {
-    if (event.target === salePopup) hideSalePopup();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") hideSalePopup();
-  });
-}
-
-/* ===== SALE POPUP: END ===== */
