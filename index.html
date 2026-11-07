@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A personal learning notes workspace.">
+  <title>My Learning Notes</title>
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="My Learning Notes home">
+        <span class="brand-mark">✦</span>
+        <span><strong>LearnSpace</strong><small>MY KNOWLEDGE BASE</small></span>
+      </a>
+
+      <button class="new-note-button" id="newNoteBtn" type="button"><span>＋</span> New note</button>
+
+      <div class="sidebar-label">WORKSPACE</div>
+      <nav class="nav-list" aria-label="Note filters">
+        <button class="nav-item active" data-filter="all"><span>▤</span> All notes <span class="nav-count" id="allCount">0</span></button>
+        <button class="nav-item" data-filter="favorites"><span>☆</span> Favorites</button>
+        <button class="nav-item" data-filter="recent"><span>◷</span> Recently edited</button>
+        <button class="nav-item" id="topicWorkspaceBtn" type="button"><span>⌘</span> Topic Workspace</button>
+      </nav>
+
+      <div class="sidebar-label topic-label">TOPICS <button id="addTopicBtn" title="Add a topic" type="button">＋</button></div>
+      <div class="topic-list" id="topicList"></div>
+
+      <div class="sidebar-bottom">
+        <div class="storage-card">
+          <span class="storage-icon">⌁</span>
+          <div><strong>Saved in this browser</strong><p>Your notes stay on this device.</p></div>
+        </div>
+        <button class="nav-item export-link" id="exportBtn" type="button"><span>⇩</span> Export backup (JSON)</button>
+        <label class="nav-item import-link"><span>⇧</span> Import backup (JSON)<input id="importInput" type="file" accept=".json,application/json" hidden></label>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="breadcrumb"><span>Workspace</span><span class="crumb-separator">/</span><strong id="breadcrumbCurrent">All notes</strong></div>
+        <div class="topbar-right">
+          <span class="save-status" id="saveStatus"><span class="status-dot"></span> All changes saved</span>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">☾</button>
+          <div class="avatar" title="Your personal workspace">L</div>
+        </div>
+      </header>
+
+      <section class="content" id="notesContent">
+        <div class="welcome-row">
+          <div>
+            <p class="eyebrow">YOUR LEARNING JOURNEY</p>
+            <h1 id="pageTitle">All notes <span class="heading-sparkle">✦</span></h1>
+            <p class="subtitle">Capture what you learn. Connect ideas. Build your own knowledge base.</p>
+          </div>
+          <button class="primary-button" id="topNewNoteBtn" type="button">＋ Create note</button>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-card"><span class="stat-icon purple">▤</span><div><span class="stat-label">Total notes</span><strong id="statNotes">0</strong></div></div>
+          <div class="stat-card"><span class="stat-icon blue">▦</span><div><span class="stat-label">Topics</span><strong id="statTopics">0</strong></div></div>
+          <div class="stat-card"><span class="stat-icon amber">☆</span><div><span class="stat-label">Favorites</span><strong id="statFavorites">0</strong></div></div>
+        </div>
+
+        <div class="notes-toolbar">
+          <div><h2 id="listHeading">Your notes</h2><p id="listDescription">Everything you've written, in one place.</p></div>
+          <div class="toolbar-controls">
+            <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search notes..." aria-label="Search notes"></label>
+            <select id="sortSelect" aria-label="Sort notes"><option value="created" selected>Oldest first</option><option value="title">Title A–Z</option></select>
+          </div>
+        </div>
+
+        <div class="notes-grid" id="notesGrid"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-illustration">✎</div>
+          <h3 id="emptyTitle">Your notebook starts here</h3>
+          <p id="emptyMessage">Create your first note and capture something you learned today.</p>
+          <button class="primary-button" id="emptyCreateBtn" type="button">＋ Create your first note</button>
+          <button class="text-button clear-search-button" id="clearSearchBtn" type="button" hidden>Clear search</button>
+        </div>
+      </section>
+
+      <section class="content topic-workspace" id="topicWorkspace" hidden>
+        <div class="workspace-heading">
+          <div>
+            <p class="eyebrow">YOUR KNOWLEDGE BASE</p>
+            <h1>Topic Workspace</h1>
+            <p class="subtitle">Track your notes and build a separate mind map for each one.</p>
+          </div>
+          <button class="primary-button" id="workspaceAddTopic" type="button">＋ Add topic</button>
+        </div>
+
+        <div class="workspace-table-card" id="topicTableSection">
+          <h2>Learning Activity Register</h2>
+          <table class="workspace-table">
+            <thead>
+              <tr><th>Date</th><th>Time</th><th>Topic</th><th>Title</th><th>Mind map</th><th>MCQ</th></tr>
+            </thead>
+            <tbody id="workspaceTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="diagram-section" id="diagramSection" hidden>
+          <div class="diagram-heading">
+            <div>
+              <button class="secondary-button" id="backToTopics" type="button">← Back to topics</button>
+              <h2 id="diagramTopicTitle"></h2>
+            </div>
+          </div>
+          <div class="diagram-toolbar diagram-host-toolbar">
+            <span class="diagram-editor-hint">Full diagrams.net editor</span>
+            <span class="toolbar-spacer"></span>
+            <button class="secondary-button" id="diagramTemplates" type="button">Templates</button>
+            <button class="secondary-button" id="exportDiagramPng" type="button">Export PNG</button>
+            <button class="secondary-button" id="exportDiagramSvg" type="button">Export SVG</button>
+            <button class="secondary-button" id="exportDiagramXml" type="button">Export XML</button>
+            <button class="primary-button" id="saveDiagram" type="button">Save &amp; close</button>
+          </div>
+          <p class="diagram-help">Use the full diagrams.net interface for shapes, connectors, formatting, layers, arrange tools, UML, ER diagrams and flowcharts. Changes are saved automatically in this browser.</p>
+          <div id="drawioHost" class="drawio-host">
+            <div class="drawio-loading" id="drawioLoading">Loading diagram editor…</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="editor-dialog" id="editorDialog">
+    <form id="noteForm" class="editor-form">
+      <div class="editor-top">
+        <div><span class="editor-kicker">NOTE EDITOR</span><h2 id="editorHeading">Create a note</h2></div>
+        <button class="icon-button close-button" id="closeEditorBtn" type="button" aria-label="Close editor">×</button>
+      </div>
+      <label class="field-label" for="noteTitle">Title</label>
+      <input id="noteTitle" class="title-input" maxlength="120" placeholder="e.g. Git working directory" required>
+      <div class="field-row">
+        <div class="field-group"><label class="field-label" for="noteTopic">Topic</label><select id="noteTopic"></select></div>
+        <div class="field-group"><label class="field-label" for="noteTags">Tags <span class="optional">(comma-separated)</span></label><input id="noteTags" placeholder="git, basics, interview"></div>
+      </div>
+      <label class="field-label" for="noteSummary">Quick summary</label>
+      <input id="noteSummary" placeholder="What is this note about?">
+      <div class="editor-content-label">
+    <label class="field-label">Your notes</label>
+    <span>Rich text editor · Paste text and images</span>
+</div>
+
+<div id="noteToolbar">
+    <span class="ql-formats">
+        <select class="ql-header">
+            <option value="1"></option>
+            <option value="2"></option>
+            <option selected></option>
+        </select>
+    </span>
+
+    <span class="ql-formats">
+        <button class="ql-bold"></button>
+        <button class="ql-italic"></button>
+        <button class="ql-underline"></button>
+    </span>
+
+    <span class="ql-formats">
+        <button class="ql-list" value="ordered"></button>
+        <button class="ql-list" value="bullet"></button>
+        <button class="ql-blockquote"></button>
+        <button class="ql-code-block"></button>
+    </span>
+
+    <span class="ql-formats">
+        <button class="ql-link"></button>
+        <button class="ql-image"></button>
+        <button class="ql-clean"></button>
+    </span>
+    <button type="button" id="insertTableBtn">Insert table</button>
+</div>
+
+<div id="noteEditor"></div>
+
+<input type="file"
+       id="imageUploadInput"
+       accept="image/*"
+       hidden>
+      <div class="field-row image-row">
+        <div class="field-group"><label class="field-label" for="imageUrl">Image URL <span class="optional">(optional)</span></label><input id="imageUrl" type="url" placeholder="https://example.com/diagram.png"></div>
+        <div class="field-group"><label class="field-label" for="imageAlt">Image description</label><input id="imageAlt" placeholder="What does the image show?"></div>
+      </div>
+      <p class="editor-tip">Tip: you can also paste a local image URL only if it is publicly hosted. Images are displayed from their URL and aren't uploaded by this website.</p>
+      <div class="editor-footer">
+        <button class="text-button danger-text" id="deleteNoteBtn" type="button" hidden>Delete note</button>
+        <div class="footer-actions"><button class="secondary-button" id="cancelEditorBtn" type="button">Cancel</button><button class="primary-button" type="submit">Save note <span>→</span></button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="preview-dialog" id="previewDialog">
+    <div class="preview-top"><span class="editor-kicker">NOTE PREVIEW</span><button class="icon-button" id="closePreviewBtn" type="button" aria-label="Close preview">×</button></div>
+    <div id="previewContent" class="preview-content"></div>
+    <div class="preview-footer"><button class="secondary-button" id="previewCloseFooter" type="button">Close</button><button class="primary-button" id="editFromPreviewBtn" type="button">Edit note →</button></div>
+  </dialog>
+
+  <dialog class="mcq-dialog" id="mcqDialog">
+    <div class="mcq-top"><div><span class="editor-kicker">NOTE PRACTICE</span><h2 id="mcqNoteTitle">MCQ practice</h2><p id="mcqNoteTopic" class="mcq-subtitle"></p></div><button class="icon-button" id="closeMcqBtn" type="button" aria-label="Close MCQ">×</button></div>
+    <section class="mcq-editor-section">
+      <h3>MCQ question bank</h3>
+      <p>Paste questions below. Use one question per block, with options A)–D) and an Answer: line.</p>
+      <textarea id="mcqInput" rows="11" placeholder="1. What does API stand for?
+A) Application Programming Interface
+B) Applied Program Internet
+C) Application Process Input
+D) Automated Program Instruction
+Answer: A
+Explanation: An API defines how software components communicate."></textarea>
+      <div class="mcq-editor-actions"><span id="mcqSaveStatus" class="mcq-save-status"></span><button class="primary-button" id="saveMcqsBtn" type="button">Save questions</button></div>
+    </section>
+    <section class="mcq-practice-section">
+      <div class="mcq-practice-heading"><div><h3>Practice quiz</h3><p id="mcqQuestionCount">No questions saved yet.</p></div><button class="secondary-button" id="startMcqBtn" type="button" disabled>Start practice</button></div>
+      <div id="mcqQuizArea"></div>
+    </section>
+    <section class="mcq-history-section"><h3>Attempt history</h3><div id="mcqHistory"></div></section>
+  </dialog>
+
+  <dialog class="small-dialog" id="topicDialog">
+    <form id="topicForm">
+      <div class="editor-top"><div><span class="editor-kicker">ORGANIZE YOUR NOTES</span><h2>Add a topic</h2></div><button class="icon-button" id="closeTopicBtn" type="button">×</button></div>
+      <label class="field-label" for="topicName">Topic name</label>
+      <input id="topicName" maxlength="40" placeholder="e.g. Python" required>
+      <div class="footer-actions"><button class="secondary-button" id="cancelTopicBtn" type="button">Cancel</button><button class="primary-button" type="submit">Add topic</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
