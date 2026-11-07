@@ -217,6 +217,17 @@ Answer: A
 Explanation: An API defines how software components communicate."></textarea>
       <div class="mcq-editor-actions"><span id="mcqSaveStatus" class="mcq-save-status"></span><button class="primary-button" id="saveMcqsBtn" type="button">Save questions</button></div>
     </section>
+    <section class="mcq-html-section">
+      <h3>Preview an HTML page</h3>
+      <p>Upload an .html or .htm file to preview it here. Page scripts are disabled; linked stylesheets and relative files are not loaded.</p>
+      <div class="mcq-html-actions">
+        <button class="secondary-button" id="mcqHtmlUploadBtn" type="button">Choose HTML file</button>
+        <button class="secondary-button" id="clearMcqHtmlBtn" type="button" hidden>Clear preview</button>
+        <input id="mcqHtmlFile" type="file" accept=".html,.htm,text/html" hidden>
+        <span id="mcqHtmlStatus" class="mcq-html-status" role="status" aria-live="polite"></span>
+      </div>
+      <iframe id="mcqHtmlPreview" class="mcq-html-preview" title="Uploaded HTML page preview" sandbox="" hidden></iframe>
+    </section>
     <section class="mcq-practice-section">
       <div class="mcq-practice-heading"><div><h3>Practice quiz</h3><p id="mcqQuestionCount">No questions saved yet.</p></div><button class="secondary-button" id="startMcqBtn" type="button" disabled>Start practice</button></div><label class="mcq-partial-toggle"><input type="checkbox" id="mcqAllowPartial"> Allow submitting a partial attempt</label>
       <div id="mcqQuizArea"></div>

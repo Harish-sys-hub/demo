@@ -654,6 +654,13 @@ bodyFormat: "html",
   let mcqEditorDirty = false;
   let mcqSavedText = "";
   const mcqDialog = $("#mcqDialog");
+  function clearMcqHtmlPreview() {
+    const preview = $("#mcqHtmlPreview");
+    preview.removeAttribute("srcdoc");
+    preview.hidden = true;
+    $("#mcqHtmlStatus").textContent = "";
+    $("#clearMcqHtmlBtn").hidden = true;
+  }
   function parseMcqText(raw) {
     const source = String(raw ?? "")
       .replace(/\r\n?/g, "\n")
@@ -725,6 +732,7 @@ bodyFormat: "html",
     mcqEditorDirty = false;
     $("#mcqSaveStatus").textContent = "";
     $("#mcqQuizArea").innerHTML = "";
+    clearMcqHtmlPreview();
     renderMcqHistory();
     updateMcqCount();
     $("#startMcqBtn").disabled = !(state.mcqs[noteId] || []).length && !$("#mcqInput").value.trim();
@@ -1001,6 +1009,46 @@ bodyFormat: "html",
   $("#topicWorkspaceBtn").addEventListener("click", showTopicWorkspace);
   $("#workspaceAddTopic").addEventListener("click", () => $("#addTopicBtn").click());
   $("#closeMcqBtn").addEventListener("click", () => mcqDialog.close());
+  $("#mcqHtmlUploadBtn").addEventListener("click", () => $("#mcqHtmlFile").click());
+  $("#clearMcqHtmlBtn").addEventListener("click", clearMcqHtmlPreview);
+  $("#mcqHtmlFile").addEventListener("change", async event => {
+    const input = event.currentTarget;
+    const file = input.files[0];
+    if (!file) return;
+    const status = $("#mcqHtmlStatus");
+    const preview = $("#mcqHtmlPreview");
+    const isHtmlFile = /\.html?$/i.test(file.name);
+    if (!isHtmlFile) {
+      status.textContent = "Choose an .html or .htm file.";
+      input.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      status.textContent = "The HTML file is too large. Maximum size is 2 MB.";
+      input.value = "";
+      return;
+    }
+    try {
+      const source = await file.text();
+      const sanitized = DOMPurify.sanitize(source, { WHOLE_DOCUMENT: true });
+      const previewDocument = new DOMParser().parseFromString(sanitized, "text/html");
+      previewDocument.querySelectorAll("base, link").forEach(element => element.remove());
+      const policy = previewDocument.createElement("meta");
+      policy.httpEquiv = "Content-Security-Policy";
+      policy.content = "default-src 'none'; img-src data: blob: https:; style-src 'unsafe-inline'; font-src data:; media-src data: blob: https:; form-action 'none'; base-uri 'none'";
+      previewDocument.head.prepend(policy);
+      previewDocument.head.insertAdjacentHTML("beforeend", "<style>html,body{min-height:100%;}body{margin:16px;font:14px/1.5 system-ui,sans-serif;}img,svg,video{max-width:100%;height:auto;}table{max-width:100%;border-collapse:collapse;}</style>");
+      preview.srcdoc = `<!doctype html>${previewDocument.documentElement.outerHTML}`;
+      preview.hidden = false;
+      $("#clearMcqHtmlBtn").hidden = false;
+      status.textContent = `Previewing ${file.name}. Scripts, linked stylesheets, and relative files are disabled.`;
+    } catch (error) {
+      status.textContent = `Could not preview ${file.name}: ${error.message}`;
+      showToast("Could not preview the selected HTML file");
+    } finally {
+      input.value = "";
+    }
+  });
   $("#insertSampleMcqBtn").addEventListener("click", () => {
     $("#mcqInput").value = `1. What does HTML stand for?\nA) HyperText Markup Language\nB) HighText Machine Language\nC) HyperTool Multi Language\nD) Home Tool Markup Language\nAnswer: A\n\n2. Which language adds interactivity to web pages?\nA) CSS\nB) JavaScript\nC) SQL\nD) Markdown\nAnswer: B`;
     mcqEditorDirty = $("#mcqInput").value !== mcqSavedText;

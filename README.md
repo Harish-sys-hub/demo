@@ -17,3 +17,8 @@ The main LearnSpace state is authoritative. Per-note `mcq_history_<noteId>` keys
 
 ## Validation
 `node --check script.js` passed. Static regression checks confirmed the old default-to-A behavior and duplicate notes-grid MCQ handler are removed. A full live-browser test is still required for dialog interactions, localStorage behavior, and file:// browser restrictions.
+
+## HTML page preview in MCQ practice
+- Use **Choose HTML file** in a note's MCQ dialog to preview a local `.html` or `.htm` page. The preview is temporary and is not saved with the note or backup.
+- HTML files are limited to 2 MB. Inline HTML and CSS are sanitized and shown in a sandboxed frame; JavaScript does not run. Linked stylesheets and relative assets are not loaded. Embedded data images and HTTPS image URLs may display.
+- This feature previews a page only; it does not convert the page into editable MCQ questions or submit answers to LearnSpace scoring/history.

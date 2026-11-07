@@ -692,3 +692,10 @@ body.dark-theme .drawio-host {
 .mcq-history-row { flex-wrap:wrap; }
 .mcq-badge.is-ungraded { color: #5b6475; background: #e9edf3; }
 .mcq-review-item.is-ungraded { border-left: 3px solid #98a2b3; }
+.mcq-html-section { border-top: 1px solid var(--border, #e7e9f2); margin-top: 20px; padding-top: 18px; }
+.mcq-html-section h3 { margin: 0 0 8px; }
+.mcq-html-section > p { color: var(--muted, #7b849d); font-size: 13px; line-height: 1.5; }
+.mcq-html-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.mcq-html-status { color: var(--muted, #77809a); font-size: 12px; }
+.mcq-html-preview { display: block; width: 100%; height: min(65vh, 640px); min-height: 320px; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+@media (max-width: 600px) { .mcq-html-preview { height: 55vh; min-height: 260px; } }
