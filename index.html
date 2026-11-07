@@ -206,7 +206,8 @@
     <div class="mcq-top"><div><span class="editor-kicker">NOTE PRACTICE</span><h2 id="mcqNoteTitle">MCQ practice</h2><p id="mcqNoteTopic" class="mcq-subtitle"></p></div><button class="icon-button" id="closeMcqBtn" type="button" aria-label="Close MCQ">×</button></div>
     <section class="mcq-editor-section">
       <h3>MCQ question bank</h3>
-      <p>Paste questions below. Use one question per block, with options A)–D) and an Answer: line.</p>
+      <p>Paste numbered questions or plain-text question blocks separated by blank lines. Options may use A), A., (A), or a). Answer keys are optional; questions without keys are saved but not graded. Invalid blocks are listed after saving.</p>
+      <div class="mcq-sample-actions"><button class="secondary-button" id="insertSampleMcqBtn" type="button">Insert Sample</button></div>
       <textarea id="mcqInput" rows="11" placeholder="1. What does API stand for?
 A) Application Programming Interface
 B) Applied Program Internet
@@ -217,7 +218,7 @@ Explanation: An API defines how software components communicate."></textarea>
       <div class="mcq-editor-actions"><span id="mcqSaveStatus" class="mcq-save-status"></span><button class="primary-button" id="saveMcqsBtn" type="button">Save questions</button></div>
     </section>
     <section class="mcq-practice-section">
-      <div class="mcq-practice-heading"><div><h3>Practice quiz</h3><p id="mcqQuestionCount">No questions saved yet.</p></div><button class="secondary-button" id="startMcqBtn" type="button" disabled>Start practice</button></div>
+      <div class="mcq-practice-heading"><div><h3>Practice quiz</h3><p id="mcqQuestionCount">No questions saved yet.</p></div><button class="secondary-button" id="startMcqBtn" type="button" disabled>Start practice</button></div><label class="mcq-partial-toggle"><input type="checkbox" id="mcqAllowPartial"> Allow submitting a partial attempt</label>
       <div id="mcqQuizArea"></div>
     </section>
     <section class="mcq-history-section"><h3>Attempt history</h3><div id="mcqHistory"></div></section>

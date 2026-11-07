@@ -683,3 +683,12 @@ body.dark-theme .drawio-host {
 .mcq-partial-toggle input { accent-color: #7058e8; }
 .mcq-history-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 10px 0; color: var(--muted, #77809a); font-size: 13px; }
 .mcq-history-summary strong { color: var(--text, #17213b); }
+
+.mcq-sample-actions { display:flex; justify-content:flex-end; margin: 8px 0; }
+.mcq-badge { display:inline-flex; align-items:center; border-radius:999px; padding:3px 8px; margin-left:8px; font-size:11px; font-weight:700; }
+.mcq-badge.is-correct { color:#137a4d; background:#dcf7e9; }
+.mcq-badge.is-wrong { color:#b42318; background:#fee4e2; }
+.mcq-badge.is-unanswered { color:#8a6416; background:#fff1c2; }
+.mcq-history-row { flex-wrap:wrap; }
+.mcq-badge.is-ungraded { color: #5b6475; background: #e9edf3; }
+.mcq-review-item.is-ungraded { border-left: 3px solid #98a2b3; }

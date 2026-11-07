@@ -655,67 +655,56 @@ bodyFormat: "html",
   let mcqSavedText = "";
   const mcqDialog = $("#mcqDialog");
   function parseMcqText(raw) {
-    const source = String(raw || '').replace(/\r\n?/g, '\n').trim();
+    const source = String(raw ?? "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/\u00A0/g, " ")
+      .split("\n").map(line => line.trim()).join("\n").trim();
     if (!source) return { questions: [], issues: [], totalBlocks: 0 };
-    const lines = source.split('\n');
-    const heading = /^\s*(?:(?:Q(?:uestion)?\s*)?\d+\s*(?:[.)-]\s*|\s+)|Q(?:uestion)\s*\d*\s*[:.-]\s*)/i;
-    const optionLine = /^\s*(?:\(([A-D])\)|([A-D])\s*[).])\s*(.+?)\s*$/i;
-    const answerLine = /^\s*(?:(?:answer|ans|correct)\s*[:=-]\s*)(?:option\s*)?(.+?)\s*$/i;
-    const blocks = [];
-    let block = [];
-    let sawHeading = false;
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex].trim();
-      if (!line) {
-        if (block.length && !sawHeading) {
-          let next = lineIndex + 1;
-          while (next < lines.length && !lines[next].trim()) next++;
-          const nextLine = lines[next]?.trim() || "";
-          const continuesCurrent = optionLine.test(nextLine) || answerLine.test(nextLine) || /^explanation\s*[:=-]/i.test(nextLine);
-          if (nextLine && !continuesCurrent) { blocks.push(block); block = []; }
-        }
-        continue;
-      }
-      if (heading.test(line)) {
-        if (block.length) blocks.push(block);
-        block = [line]; sawHeading = true; continue;
-      }
-      block.push(line);
+
+    // Numbered question headings are the primary boundary. Also accept blank-line
+    // separated unnumbered blocks as a forgiving fallback.
+    let blocks = source.split(/\n(?=\s*\d+[.)]\s*)/).map(block => block.trim()).filter(Boolean);
+    if (blocks.length <= 1 && !/^\s*\d+[.)]\s*/.test(source)) {
+      blocks = source.split(/\n\s*\n+/).map(block => block.trim()).filter(Boolean);
     }
-    if (block.length) blocks.push(block);
-    // If there are no numbered headings, blank-line-separated question groups are accepted.
+    const optionPattern = /^\s*(?:\(([A-D])\)|\[([A-D])\]|([A-D])\s*[).])\s*(.*?)\s*$/i;
+    const answerPattern = /^\s*(?:answer|ans|correct)\s*[:=-]\s*(?:option\s*)?(.+?)\s*$/i;
     const parsed = [], issues = [];
-    blocks.forEach((rows, blockIndex) => {
-      let question = '', options = [], answerRaw = '', explanation = '', inExplanation = false;
-      for (const line of rows) {
-        const a = line.match(answerLine);
-        if (a) { answerRaw = a[1].trim(); inExplanation = false; continue; }
-        const inlineAnswer = line.match(/^([A-D])\)\s+(.+)$/i);
-        if (inlineAnswer && /^(?:answer|correct)\b/i.test(inlineAnswer[2])) { answerRaw = inlineAnswer[1]; continue; }
-        const ex = line.match(/^explanation\s*[:=-]\s*(.*)$/i);
-        if (ex) { explanation = ex[1].trim(); inExplanation = true; continue; }
-        const opt = line.match(optionLine);
-        if (opt) { options.push({ key: (opt[1] || opt[2]).toUpperCase(), text: opt[3].trim() }); inExplanation = false; continue; }
-        if (inExplanation) explanation = `${explanation}${explanation ? ' ' : ''}${line}`.trim();
-        else question = `${question}${question ? ' ' : ''}${line.replace(heading, '').replace(/^Q(?:uestion)?\s*[:.-]\s*/i, '').trim()}`.trim();
+
+    blocks.forEach((block, blockIndex) => {
+      const rows = block.split("\n").map(line => line.trim()).filter(Boolean);
+      let questionParts = [], options = [], answer = "", invalidAnswer = false, explanationParts = [], inExplanation = false;
+      for (const row of rows) {
+        const answerMatch = row.match(answerPattern);
+        if (answerMatch) {
+          const rawAnswer = answerMatch[1].trim();
+          if (/^[A-D]$/i.test(rawAnswer)) answer = rawAnswer.toUpperCase();
+          else invalidAnswer = true;
+          inExplanation = false; continue;
+        }
+        const explanationMatch = row.match(/^explanation\s*[:=-]\s*(.*)$/i);
+        if (explanationMatch) { explanationParts.push(explanationMatch[1]); inExplanation = true; continue; }
+        const optionMatch = row.match(optionPattern);
+        if (optionMatch) {
+          options.push({ key: (optionMatch[1] || optionMatch[2] || optionMatch[3]).toUpperCase(), text: optionMatch[4].trim() });
+          inExplanation = false;
+          continue;
+        }
+        if (inExplanation) explanationParts.push(row);
+        else questionParts.push(row.replace(/^\s*(?:(?:Q(?:uestion)?\s*)?\d+\s*[.)-]\s*|Q(?:uestion)?\s*\d*\s*[:.-]\s*)/i, "").trim());
       }
-      const seen = new Set(); let duplicate = false;
-      for (const option of options) { if (seen.has(option.key)) duplicate = true; seen.add(option.key); }
-      const labels = new Set(options.map(o => o.key));
-      let answer = '';
-      if (answerRaw) {
-        const matches = answerRaw.match(/[A-D]/gi) || [];
-        if (matches.length !== 1 || !/^(?:\(?[A-D]\)?)(?:\s*[.)-].*)?$/i.test(answerRaw)) {
-          issues.push(`Block ${blockIndex + 1}: answer must contain exactly one option letter (A–D).`);
-        } else answer = matches[0].toUpperCase();
-      }
+      const question = questionParts.filter(Boolean).join(" ").trim();
+      const labels = options.map(option => option.key);
       const errors = [];
-      if (!question) errors.push('missing question text');
-      if (options.length < 2) errors.push('needs at least two options');
-      if (duplicate) errors.push('contains duplicate option labels');
-      if (answer && !labels.has(answer)) errors.push(`answer ${answer} does not match a listed option`);
-      if (errors.length) { issues.push(`Block ${blockIndex + 1}: ${errors.join(', ')}.`); return; }
-      parsed.push({ id: `q_${parsed.length + 1}`, question, options, answer, explanation });
+      if (!question) errors.push("missing question text");
+      if (options.length < 2) errors.push("needs at least two options");
+      if (options.some(option => !option.text)) errors.push("contains an option with no text");
+      if (new Set(labels).size !== labels.length) errors.push("contains duplicate option labels");
+      if (invalidAnswer) errors.push("answer line must contain exactly one option letter");
+      // Missing answer keys remain empty and are excluded from scoring.
+      if (answer && !labels.includes(answer)) errors.push(`answer ${answer} does not match a listed option`);
+      if (errors.length) { issues.push(`Block ${blockIndex + 1}: ${errors.join(", ")}.`); return; }
+      parsed.push({ id: `q_${Date.now()}_${blockIndex + 1}`, question, options, answer, explanation: explanationParts.join(" ").trim() });
     });
     return { questions: parsed, issues, totalBlocks: blocks.length };
   }
@@ -738,6 +727,7 @@ bodyFormat: "html",
     $("#mcqQuizArea").innerHTML = "";
     renderMcqHistory();
     updateMcqCount();
+    $("#startMcqBtn").disabled = !(state.mcqs[noteId] || []).length && !$("#mcqInput").value.trim();
     if (els.previewDialog.open) els.previewDialog.close();
     if (!mcqDialog.open) mcqDialog.showModal();
   }
@@ -762,16 +752,52 @@ bodyFormat: "html",
     $("#mcqSaveStatus").textContent = `${parsed.length} of ${result.totalBlocks} question block(s) saved.${missingKeys ? ` ${missingKeys} have no answer key and will be ungraded.` : ''}${partial ? `\nNot saved:\n${result.issues.join('\n')}` : ''}`;
     $("#mcqQuizArea").innerHTML = ""; updateMcqCount(); showToast(partial ? "Valid questions saved; some blocks need fixing" : "MCQ questions saved");
   }
+  function getMcqHistory(noteId = activeMcqNoteId) {
+    const key = `mcq_history_${noteId}`;
+    if (Array.isArray(state.mcqAttempts[noteId])) return state.mcqAttempts[noteId];
+    try {
+      const stored = JSON.parse(localStorage.getItem(key) || "null");
+      if (Array.isArray(stored)) { state.mcqAttempts[noteId] = stored; return stored; }
+    } catch (error) { console.warn("Could not read MCQ history", error); }
+    return [];
+  }
+  function saveMcqHistory(noteId, attempts) {
+    state.mcqAttempts[noteId] = attempts;
+    try { localStorage.setItem(`mcq_history_${noteId}`, JSON.stringify(attempts)); } catch (error) { console.warn("Could not save MCQ history", error); }
+    persist();
+  }
   function startMcqPractice() {
-    if (mcqEditorDirty && $("#mcqInput").value !== mcqSavedText) {
-      if (!confirm("You have unsaved MCQ edits. Practice will use the previously saved question bank. Continue?")) return;
+    const input = $("#mcqInput");
+    const raw = input.value.trim();
+    if (!raw) {
+      $("#mcqSaveStatus").textContent = "Please paste your questions first.";
+      input.focus();
+      return;
+    }
+    // Start Practice also saves the current textarea content automatically.
+    if (mcqEditorDirty || raw !== mcqSavedText || !(state.mcqs[activeMcqNoteId] || []).length) {
+      const result = parseMcqText(input.value);
+      if (!result.questions.length) {
+        $("#mcqSaveStatus").textContent = `No valid questions found. ${result.issues.join(" ") || "Check the question and option format."}`;
+        return;
+      }
+      state.mcqs[activeMcqNoteId] = result.questions;
+      persist();
+      mcqSavedText = input.value;
+      mcqEditorDirty = false;
+      const skipped = result.issues.length;
+      $("#mcqSaveStatus").textContent = `${result.questions.length} of ${result.totalBlocks} question block(s) saved.${skipped ? ` ${skipped} invalid block(s) were skipped: ${result.issues.join(" ")}` : " Questions saved automatically."}`;
+      updateMcqCount();
     }
     const questions = state.mcqs[activeMcqNoteId] || [];
-    if (!questions.length) return;
+    if (!questions.length) {
+      $("#mcqSaveStatus").textContent = "Please paste your questions first.";
+      return;
+    }
     activeMcqAnswers = {};
     const allowPartial = $("#mcqAllowPartial").checked;
     const form = $("#mcqQuizArea");
-    form.innerHTML = `<form id="mcqPracticeForm"><p class="mcq-progress" id="mcqProgress">Question 0 of ${questions.length} answered</p>${questions.map((q, index) => `<fieldset class="mcq-question"><legend>${index + 1}. ${escapeHTML(q.question)}</legend>${q.options.map(option => `<label class="mcq-option"><input type="radio" name="${escapeHTML(q.id)}" value="${escapeHTML(option.key)}"><span><strong>${escapeHTML(option.key)}.</strong> ${escapeHTML(option.text)}</span></label>`).join("")}</fieldset>`).join("")}<button class="primary-button" type="submit">Submit ${allowPartial ? "attempt" : "answers"}</button></form>`;
+    form.innerHTML = `<form id="mcqPracticeForm"><p class="mcq-progress" id="mcqProgress">Question 0 of ${questions.length} answered</p>${questions.map((q, index) => `<fieldset class="mcq-question"><legend>${index + 1}. ${escapeHTML(q.question)}</legend>${q.options.map(option => `<label class="mcq-option"><input type="radio" name="${escapeHTML(q.id)}" value="${escapeHTML(option.key)}"><span><strong>${escapeHTML(option.key)}.</strong> ${escapeHTML(option.text)}</span></label>`).join("")}</fieldset>`).join("")}<button class="primary-button" type="submit">Submit Quiz</button></form>`;
     const practiceForm = $("#mcqPracticeForm");
     practiceForm.addEventListener("change", () => {
       const answered = questions.filter(q => practiceForm.querySelector(`input[name="${CSS.escape(q.id)}"]:checked`)).length;
@@ -786,32 +812,40 @@ bodyFormat: "html",
       if (!answered.length) { showToast("Answer at least one question before submitting"); return; }
       let score = 0, graded = 0;
       const review = questions.map((q, index) => {
-        const chosen = formData.get(q.id), hasKey = Boolean(q.answer);
-        if (!chosen) return `<div class="mcq-review-item is-ungraded"><strong>${index + 1}. ${escapeHTML(q.question)}</strong><p>Not answered.</p></div>`;
+        const chosen = formData.get(q.id);
+        const hasKey = Boolean(q.answer);
         const correct = hasKey && chosen === q.answer;
-        if (hasKey) graded++; if (correct) score++;
-        const correctText = q.options.find(option => option.key === q.answer)?.text || "";
-        const resultText = hasKey ? `Your answer: ${escapeHTML(chosen)} · Correct answer: ${escapeHTML(q.answer)} — ${escapeHTML(correctText)}` : `Your answer: ${escapeHTML(chosen)} · Not graded: no answer key has been set.`;
-        return `<div class="mcq-review-item ${hasKey ? (correct ? "is-correct" : "is-wrong") : "is-ungraded"}"><strong>${index + 1}. ${escapeHTML(q.question)}</strong><p>${resultText}</p>${q.explanation ? `<p>${escapeHTML(q.explanation)}</p>` : ""}</div>`;
+        if (hasKey) { graded++; if (correct) score++; }
+        const correctText = hasKey ? (q.options.find(option => option.key === q.answer)?.text || "") : "";
+        const badge = !hasKey ? `<span class="mcq-badge is-ungraded">Not graded</span>` : !chosen ? `<span class="mcq-badge is-unanswered">Unanswered</span>` : correct ? `<span class="mcq-badge is-correct">Correct</span>` : `<span class="mcq-badge is-wrong">Incorrect</span>`;
+        const answerLine = hasKey ? `<p>Your answer: ${escapeHTML(chosen || "—")} · Correct answer: ${escapeHTML(q.answer)} — ${escapeHTML(correctText)}</p>` : `<p>Your answer: ${escapeHTML(chosen || "—")} · This question has no answer key and was not graded.</p>`;
+        return `<div class="mcq-review-item ${!hasKey || !chosen ? "is-ungraded" : correct ? "is-correct" : "is-wrong"}"><strong>${index + 1}. ${escapeHTML(q.question)}</strong> ${badge}${answerLine}${q.explanation ? `<p>${escapeHTML(q.explanation)}</p>` : ""}</div>`;
       }).join("");
       const percentage = graded ? Math.round(score / graded * 100) : 0;
-      const attempt = { date: new Date().toISOString(), score, total: questions.length, answered: answered.length, graded, ungraded: questions.length - graded, percentage };
-      state.mcqAttempts[activeMcqNoteId] = state.mcqAttempts[activeMcqNoteId] || [];
-      state.mcqAttempts[activeMcqNoteId].unshift(attempt); persist();
-      $("#mcqQuizArea").innerHTML = `<div class="mcq-result"><h3>Score: ${score}/${graded} graded (${graded ? `${attempt.percentage}%` : "No graded questions"})</h3><p>${unanswered ? `${unanswered} question(s) left unanswered. ` : ""}${attempt.ungraded ? `${attempt.ungraded} question(s) were not graded because they have no answer key.` : attempt.percentage === 100 ? "Excellent work!" : "Review the answers and try again."}</p></div>${review}<button class="secondary-button" id="retryMcqBtn" type="button">Practice again</button>`;
-      $("#retryMcqBtn").addEventListener("click", startMcqPractice); renderMcqHistory();
+      const timestamp = new Date().toISOString();
+      const attempt = { timestamp, date: timestamp, score, total: questions.length, percentage, answered: answered.length, graded, ungraded: questions.length - graded };
+      const attempts = getMcqHistory(activeMcqNoteId);
+      attempts.unshift(attempt);
+      saveMcqHistory(activeMcqNoteId, attempts);
+      // Replacing the form locks all submitted answers against further changes.
+      $("#mcqQuizArea").innerHTML = `<div class="mcq-result"><h3>Score: ${score}/${graded} graded (${percentage}%)</h3><p>${answered.length}/${questions.length} answered · ${graded}/${questions.length} graded · ${questions.length - graded} without answer keys. ${unanswered ? `${unanswered} unanswered. ` : ""}${percentage === 100 && graded ? "Excellent work!" : "Review the answers and try again."}</p></div>${review}<button class="secondary-button" id="retryMcqBtn" type="button">Retake quiz</button>`;
+      $("#retryMcqBtn").addEventListener("click", startMcqPractice);
+      renderMcqHistory();
     });
   }
   function renderMcqHistory() {
-    const attempts = state.mcqAttempts[activeMcqNoteId] || [];
-    const gradedAttempts = attempts.filter(a => Number.isFinite(a.percentage) && (a.graded ?? a.total) > 0);
-    const best = gradedAttempts.length ? Math.max(...gradedAttempts.map(a => a.percentage)) : null;
-    const average = gradedAttempts.length ? Math.round(gradedAttempts.reduce((sum, a) => sum + a.percentage, 0) / gradedAttempts.length) : null;
-    $("#mcqHistory").innerHTML = attempts.length ? `<div class="mcq-history-summary"><span>Attempts: <strong>${attempts.length}</strong></span><span>Best: <strong>${best === null ? "—" : `${best}%`}</strong></span><span>Average: <strong>${average === null ? "—" : `${average}%`}</strong></span><button type="button" class="secondary-button" id="clearMcqHistoryBtn">Clear history</button></div><div class="mcq-history-list">${attempts.map((attempt, index) => `<div class="mcq-history-row"><span>Attempt ${attempts.length - index}</span><strong>${attempt.score}/${attempt.graded ?? attempt.total} graded (${attempt.graded === 0 ? "—" : `${attempt.percentage}%`})</strong><time>${escapeHTML(formatDate(attempt.date))}</time></div>`).join("")}</div>` : '<p class="mcq-empty-history">No attempts yet. Complete a practice quiz and your score will appear here.</p>';
+    const attempts = getMcqHistory(activeMcqNoteId).slice().sort((a, b) => new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0));
+    state.mcqAttempts[activeMcqNoteId] = attempts;
+    const best = attempts.length ? Math.max(...attempts.map(a => Number(a.percentage) || 0)) : null;
+    const average = attempts.length ? Math.round(attempts.reduce((sum, a) => sum + (Number(a.percentage) || 0), 0) / attempts.length) : null;
+    $("#mcqHistory").innerHTML = attempts.length ? `<div class="mcq-history-summary"><span>Attempts: <strong>${attempts.length}</strong></span><span>Best: <strong>${best}%</strong></span><span>Average: <strong>${average}%</strong></span><button type="button" class="secondary-button" id="clearMcqHistoryBtn">Clear history</button></div><div class="mcq-history-list">${attempts.map((attempt, index) => `<div class="mcq-history-row"><span>Attempt ${attempts.length - index}</span><strong>${Number(attempt.score) || 0}/${Number(attempt.total) || 0} (${Number(attempt.percentage) || 0}%)</strong><time>${escapeHTML(formatDate(attempt.timestamp || attempt.date))}</time><button type="button" class="secondary-button mcq-retake-history" data-retake-mcq>Retake</button></div>`).join("")}</div>` : '<p class="mcq-empty-history">No attempts yet. Complete a practice quiz and your score will appear here.</p>';
     $("#clearMcqHistoryBtn")?.addEventListener("click", () => {
       if (!confirm("Clear all attempt history for this note? This cannot be undone.")) return;
-      state.mcqAttempts[activeMcqNoteId] = []; persist(); renderMcqHistory();
+      saveMcqHistory(activeMcqNoteId, []);
+      try { localStorage.removeItem(`mcq_history_${activeMcqNoteId}`); } catch (error) { console.warn(error); }
+      renderMcqHistory();
     });
+    $("#mcqHistory").querySelectorAll("[data-retake-mcq]").forEach(button => button.addEventListener("click", startMcqPractice));
   }
 
 
@@ -878,8 +912,13 @@ bodyFormat: "html",
     if (!rawAttempts || typeof rawAttempts !== "object" || Array.isArray(rawAttempts)) return cleaned;
     for (const [noteId, list] of Object.entries(rawAttempts)) {
       if (!validNoteIds.has(noteId) || !Array.isArray(list)) continue;
-      cleaned[noteId] = list.filter(a => a && typeof a.date === "string" && !Number.isNaN(Date.parse(a.date)) && Number.isFinite(a.score) && Number.isFinite(a.total) && Number.isFinite(a.graded ?? a.total) && Number.isFinite(a.percentage) && a.score >= 0 && a.total >= 0 && a.graded >= 0 && a.score <= a.graded && a.graded <= a.total && a.percentage >= 0 && a.percentage <= 100)
-        .map(a => ({ date: a.date, score: a.score, total: a.total, answered: Number.isFinite(a.answered) ? a.answered : a.total, graded: a.graded ?? a.total, ungraded: Number.isFinite(a.ungraded) ? a.ungraded : Math.max(0, a.total - (a.graded ?? a.total)), percentage: a.percentage }));
+      cleaned[noteId] = list.map(a => {
+        if (!a || typeof (a.timestamp || a.date) !== "string" || Number.isNaN(Date.parse(a.timestamp || a.date))) return null;
+        const total = Number(a.total), score = Number(a.score), graded = Number(a.graded ?? a.total);
+        const answered = Number(a.answered ?? a.total), percentage = Number(a.percentage);
+        if (![total, score, graded, answered, percentage].every(Number.isFinite) || total < 0 || graded < 0 || graded > total || score < 0 || score > graded || answered < 0 || answered > total || percentage < 0 || percentage > 100) return null;
+        return { timestamp: a.timestamp || a.date, date: a.timestamp || a.date, score, total, answered, graded, ungraded: Number.isFinite(Number(a.ungraded)) ? Number(a.ungraded) : total - graded, percentage };
+      }).filter(Boolean);
     }
     return cleaned;
   }
@@ -917,6 +956,11 @@ bodyFormat: "html",
         };
         state.mcqs = validateImportedMcqs(data.mcqs, state.notes);
         state.mcqAttempts = validateImportedAttempts(data.mcqAttempts, state.notes);
+        // The imported application state is authoritative; clear stale legacy keys and synchronize it.
+        try {
+          for (const key of Object.keys(localStorage)) if (key.startsWith("mcq_history_")) localStorage.removeItem(key);
+          for (const [noteId, attempts] of Object.entries(state.mcqAttempts)) localStorage.setItem(`mcq_history_${noteId}`, JSON.stringify(attempts));
+        } catch (error) { console.warn("Could not synchronize imported MCQ history", error); }
         persist(); setFilter("all"); showToast("Backup imported successfully");
       } catch (error) { alert("Could not import backup: " + error.message); }
       finally { els.importInput.value = ""; }
@@ -957,13 +1001,20 @@ bodyFormat: "html",
   $("#topicWorkspaceBtn").addEventListener("click", showTopicWorkspace);
   $("#workspaceAddTopic").addEventListener("click", () => $("#addTopicBtn").click());
   $("#closeMcqBtn").addEventListener("click", () => mcqDialog.close());
-  $("#saveMcqsBtn").addEventListener("click", saveMcqs);
-  $("#mcqInput").addEventListener("input", () => { mcqEditorDirty = $("#mcqInput").value !== mcqSavedText; });
-  $("#startMcqBtn").addEventListener("click", startMcqPractice);
-  els.notesGrid.addEventListener("click", event => {
-    const mcqButton = event.target.closest("[data-open-note-mcq]");
-    if (mcqButton) { event.preventDefault(); event.stopPropagation(); openMcqPage(mcqButton.dataset.openNoteMcq); }
+  $("#insertSampleMcqBtn").addEventListener("click", () => {
+    $("#mcqInput").value = `1. What does HTML stand for?\nA) HyperText Markup Language\nB) HighText Machine Language\nC) HyperTool Multi Language\nD) Home Tool Markup Language\nAnswer: A\n\n2. Which language adds interactivity to web pages?\nA) CSS\nB) JavaScript\nC) SQL\nD) Markdown\nAnswer: B`;
+    mcqEditorDirty = $("#mcqInput").value !== mcqSavedText;
+    $("#startMcqBtn").disabled = false;
+    $("#mcqSaveStatus").textContent = "Sample questions inserted. Click Start practice to save and begin.";
+    $("#mcqInput").focus();
   });
+  $("#saveMcqsBtn").addEventListener("click", saveMcqs);
+  $("#mcqInput").addEventListener("input", () => {
+    mcqEditorDirty = $("#mcqInput").value !== mcqSavedText;
+    $("#startMcqBtn").disabled = !$("#mcqInput").value.trim() && !(state.mcqs[activeMcqNoteId] || []).length;
+  });
+  $("#startMcqBtn").addEventListener("click", startMcqPractice);
+
   els.previewContent.addEventListener("click", event => {
     const mcqButton = event.target.closest("[data-open-note-mcq]");
     if (mcqButton) { event.preventDefault(); openMcqPage(mcqButton.dataset.openNoteMcq); }
@@ -1000,23 +1051,16 @@ bodyFormat: "html",
     openNoteDiagram(mindMapButton.dataset.openNoteMindmap);
   });
   els.notesGrid.addEventListener("click", event => {
+    const mcqButton = event.target.closest("[data-open-note-mcq]");
     const mindMapButton = event.target.closest("[data-open-note-mindmap]");
     const favoriteButton = event.target.closest("[data-favorite]");
     const editButton = event.target.closest("[data-edit]");
     const card = event.target.closest("[data-open-note]");
-    if (mindMapButton) {
-      event.preventDefault();
-      event.stopPropagation();
-      openNoteDiagram(mindMapButton.dataset.openNoteMindmap);
-    } else if (favoriteButton) {
-      event.stopPropagation();
-      const note = state.notes.find(item => item.id === favoriteButton.dataset.favorite);
-      if (note) { note.favorite = !note.favorite; note.updatedAt = new Date().toISOString(); persist(); render(); }
-    } else if (editButton) {
-      event.stopPropagation();
-      const note = state.notes.find(item => item.id === editButton.dataset.edit);
-      if (note) openEditor(note);
-    } else if (card) openPreview(card.dataset.openNote);
+    if (mcqButton) { event.preventDefault(); event.stopPropagation(); openMcqPage(mcqButton.dataset.openNoteMcq); return; }
+    if (mindMapButton) { event.preventDefault(); event.stopPropagation(); openNoteDiagram(mindMapButton.dataset.openNoteMindmap); return; }
+    if (favoriteButton) { event.preventDefault(); event.stopPropagation(); const note = state.notes.find(item => item.id === favoriteButton.dataset.favorite); if (note) { note.favorite = !note.favorite; note.updatedAt = new Date().toISOString(); persist(); render(); } return; }
+    if (editButton) { event.preventDefault(); event.stopPropagation(); const note = state.notes.find(item => item.id === editButton.dataset.edit); if (note) openEditor(note); return; }
+    if (card) openPreview(card.dataset.openNote);
   });
   els.notesGrid.addEventListener("keydown", event => {
     const card = event.target.closest("[data-open-note]");
