@@ -6,7 +6,8 @@
   --shadow: 0 8px 28px rgba(34, 33, 71, .045); --radius: 18px;
 }
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--text); background: var(--bg); font-family: 'DM Sans', sans-serif; font-size: 14px; }
+body { display: none; margin: 0; color: var(--text); background: var(--bg); font-family: 'DM Sans', sans-serif; font-size: 14px; }
+.access-denied { display: grid; place-items: center; min-height: 100vh; padding: 24px; text-align: center; font: 700 20px 'Manrope', sans-serif; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #cfc7ff; outline-offset: 2px; }

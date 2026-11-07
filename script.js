@@ -1,5 +1,28 @@
+const accessGranted = (() => {
+  const PASSWORD = "1234";
+  const AUTH_KEY = "learnspace-session-authorized";
+
+  if (sessionStorage.getItem(AUTH_KEY) === "true") {
+    document.body.style.display = "block";
+    return true;
+  }
+
+  const enteredPassword = window.prompt("Please enter the password to access this page:");
+  if (enteredPassword === PASSWORD) {
+    sessionStorage.setItem(AUTH_KEY, "true");
+    document.body.style.display = "block";
+    return true;
+  }
+
+  window.alert("Incorrect password. Access denied.");
+  document.body.innerHTML = '<main class="access-denied">Access Denied. Please reload to try again.</main>';
+  document.body.style.display = "block";
+  return false;
+})();
+
 (() => {
   "use strict";
+  if (!accessGranted) return;
 
   const STORAGE_KEY = "learnspace-notes-v1";
   const THEME_KEY = "learnspace-theme";
