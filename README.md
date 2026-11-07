@@ -17,6 +17,7 @@ The embedded diagrams.net editor requires an internet connection. Notes and mind
 ## MCQ practice
 - Every note card and note preview includes an **MCQ** action; Topic Workspace rows also include an MCQ action.
 - MCQ questions and attempt history are stored separately for each note in browser localStorage.
-- Paste one question per block. Each block needs a question, at least two A)–D) options, and an `Answer: A` line. `Explanation: ...` is optional.
+- Paste numbered questions using `1.`, `1)`, or `1 ` headers. Options may use `A)`, `A.`, `(A)`, or lowercase labels. Answer keys accept `Answer: B`, `Ans: B`, `Correct: B`, `Answer - B`, and equivalent forms. Explanations are optional.
+- Answer keys are optional: valid questions with at least two options are still saved. Questions without a key are clearly marked and included in practice, but excluded from the graded score until a key is supplied.
 - Save the question bank, then select **Start practice**. Each submission records a new attempt with score, percentage, and date. Users can practice again without overwriting earlier attempts.
 - JSON backup export/import includes MCQ banks and attempt history.

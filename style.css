@@ -676,3 +676,10 @@ body.dark-theme .drawio-host {
 .mcq-history-row { border-bottom: 1px solid var(--border, #e7e9f2); padding: 10px 2px; font-size: 13px; }
 .mcq-history-row time, .mcq-empty-history { color: var(--muted, #77809a); font-size: 12px; }
 @media (max-width: 600px) { .mcq-dialog { padding: 17px; } .mcq-history-row { align-items: flex-start; flex-direction: column; gap: 3px; } }
+
+.mcq-save-status { white-space: pre-line; max-width: 72%; }
+.mcq-progress { position: sticky; top: 0; z-index: 1; padding: 9px 12px; border-radius: 8px; background: var(--hover, #f2efff); color: var(--text, #17213b); font-weight: 700; }
+.mcq-partial-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 0; color: var(--muted, #77809a); font-size: 13px; }
+.mcq-partial-toggle input { accent-color: #7058e8; }
+.mcq-history-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 10px 0; color: var(--muted, #77809a); font-size: 13px; }
+.mcq-history-summary strong { color: var(--text, #17213b); }
