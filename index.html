@@ -204,7 +204,7 @@
 
   <dialog class="mcq-dialog" id="mcqDialog">
     <div class="mcq-top"><div><span class="editor-kicker">NOTE PRACTICE</span><h2 id="mcqNoteTitle">MCQ practice</h2><p id="mcqNoteTopic" class="mcq-subtitle"></p></div><button class="icon-button" id="closeMcqBtn" type="button" aria-label="Close MCQ">×</button></div>
-    <section class="mcq-editor-section">
+    <section class="mcq-editor-section" id="mcqEditorSection">
       <h3>MCQ question bank</h3>
       <p>Paste numbered questions or plain-text question blocks separated by blank lines. Options may use A), A., (A), or a). Answer keys are optional; questions without keys are saved but not graded. Invalid blocks are listed after saving.</p>
       <div class="mcq-sample-actions"><button class="secondary-button" id="insertSampleMcqBtn" type="button">Insert Sample</button></div>
@@ -218,15 +218,14 @@ Explanation: An API defines how software components communicate."></textarea>
       <div class="mcq-editor-actions"><span id="mcqSaveStatus" class="mcq-save-status"></span><button class="primary-button" id="saveMcqsBtn" type="button">Save questions</button></div>
     </section>
     <section class="mcq-html-section">
-      <h3>Preview an HTML page</h3>
-      <p>Upload an .html or .htm file to preview it here. Page scripts are disabled; linked stylesheets and relative files are not loaded.</p>
+      <h3>Upload an HTML quiz</h3>
+      <p>Questions and answers stay hidden after upload. Click Start practice to begin. Use one fieldset per question, a legend for the prompt, and 2–4 labeled radio options; mark exactly one correct radio input or label with <code>data-correct="true"</code>. Uploading replaces this note's current question bank. Scripts are never run; use embedded content because linked styles and relative assets are not imported.</p>
       <div class="mcq-html-actions">
-        <button class="secondary-button" id="mcqHtmlUploadBtn" type="button">Choose HTML file</button>
-        <button class="secondary-button" id="clearMcqHtmlBtn" type="button" hidden>Clear preview</button>
+        <button class="secondary-button" id="mcqHtmlUploadBtn" type="button">Choose HTML quiz</button>
+        <button class="secondary-button" id="clearMcqHtmlBtn" type="button" hidden>Remove uploaded quiz</button>
         <input id="mcqHtmlFile" type="file" accept=".html,.htm,text/html" hidden>
         <span id="mcqHtmlStatus" class="mcq-html-status" role="status" aria-live="polite"></span>
       </div>
-      <iframe id="mcqHtmlPreview" class="mcq-html-preview" title="Uploaded HTML page preview" sandbox="" hidden></iframe>
     </section>
     <section class="mcq-practice-section">
       <div class="mcq-practice-heading"><div><h3>Practice quiz</h3><p id="mcqQuestionCount">No questions saved yet.</p></div><button class="secondary-button" id="startMcqBtn" type="button" disabled>Start practice</button></div><label class="mcq-partial-toggle"><input type="checkbox" id="mcqAllowPartial"> Allow submitting a partial attempt</label>

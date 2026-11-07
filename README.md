@@ -18,7 +18,8 @@ The main LearnSpace state is authoritative. Per-note `mcq_history_<noteId>` keys
 ## Validation
 `node --check script.js` passed. Static regression checks confirmed the old default-to-A behavior and duplicate notes-grid MCQ handler are removed. A full live-browser test is still required for dialog interactions, localStorage behavior, and file:// browser restrictions.
 
-## HTML page preview in MCQ practice
-- Use **Choose HTML file** in a note's MCQ dialog to preview a local `.html` or `.htm` page. The preview is temporary and is not saved with the note or backup.
-- HTML files are limited to 2 MB. Inline HTML and CSS are sanitized and shown in a sandboxed frame; JavaScript does not run. Linked stylesheets and relative assets are not loaded. Embedded data images and HTTPS image URLs may display.
-- This feature previews a page only; it does not convert the page into editable MCQ questions or submit answers to LearnSpace scoring/history.
+## Importing an HTML quiz
+- Choose an `.html` or `.htm` file (up to 2 MB) from a note's MCQ dialog. The import replaces that note's current question bank and is saved with the local LearnSpace state and backup.
+- Use one `<fieldset>` per question, a `<legend>` prompt, and 2–4 labeled radio inputs. Mark exactly one correct input or its label with `data-correct="true"`. Example: `<label><input type="radio" name="q1" data-correct="true"> Paris</label>`.
+- Imported prompts and options are hidden until **Start practice** is clicked. Submission uses the existing scoring, answer review, and attempt-history flow.
+- Uploaded scripts are never executed. Prompt/option markup is sanitized before display; linked stylesheets and relative assets are not imported. Use inline markup and embedded data images for portable content.

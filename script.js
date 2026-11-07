@@ -653,13 +653,84 @@ bodyFormat: "html",
   let activeMcqAnswers = {};
   let mcqEditorDirty = false;
   let mcqSavedText = "";
+  let mcqHtmlMode = false;
   const mcqDialog = $("#mcqDialog");
-  function clearMcqHtmlPreview() {
-    const preview = $("#mcqHtmlPreview");
-    preview.removeAttribute("srcdoc");
-    preview.hidden = true;
+  function sanitizeMcqMarkup(markup) {
+    return DOMPurify.sanitize(markup, {
+      ALLOWED_TAGS: ["a", "b", "br", "code", "em", "i", "img", "li", "ol", "p", "pre", "span", "strong", "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "u", "ul"],
+      ALLOWED_ATTR: ["alt", "class", "colspan", "height", "href", "src", "title", "width"]
+    });
+  }
+  function parseMcqHtml(source) {
+    const document = new DOMParser().parseFromString(source, "text/html");
+    const containers = [...document.querySelectorAll("fieldset")];
+    const questions = [];
+    const issues = [];
+
+    containers.forEach((container, questionIndex) => {
+      const prompt = container.querySelector("legend, [data-question-text], .question-text");
+      const radios = [...container.querySelectorAll('input[type="radio"]')];
+      if (!prompt || radios.length < 2) {
+        issues.push(`Question ${questionIndex + 1} needs a legend and at least two radio options.`);
+        return;
+      }
+      if (radios.length > 4) {
+        issues.push(`Question ${questionIndex + 1} has more than four radio options.`);
+        return;
+      }
+
+      const options = radios.map((radio, optionIndex) => {
+        const label = radio.closest("label") || [...container.querySelectorAll("label[for]")].find(item => item.htmlFor === radio.id);
+        if (!label) return null;
+        const clone = label.cloneNode(true);
+        clone.querySelectorAll("input, button").forEach(element => element.remove());
+        const key = String.fromCharCode(65 + optionIndex);
+        const markedCorrect = radio.dataset.correct?.toLowerCase() === "true" ||
+          label.dataset.correct?.toLowerCase() === "true" ||
+          label.classList.contains("correct") || radio.classList.contains("correct");
+        return {
+          key,
+          text: clone.textContent.trim(),
+          html: sanitizeMcqMarkup(clone.innerHTML),
+          correct: markedCorrect
+        };
+      });
+
+      if (options.some(option => !option || !option.text)) {
+        issues.push(`Question ${questionIndex + 1} has an option without a label or text.`);
+        return;
+      }
+      const markedOptions = options.filter(option => option.correct);
+      if (markedOptions.length !== 1) {
+        issues.push(`Question ${questionIndex + 1} must mark exactly one correct option with data-correct="true".`);
+        return;
+      }
+      questions.push({
+        id: `html_q_${questionIndex + 1}`,
+        source: "html",
+        question: prompt.textContent.trim(),
+        questionHtml: sanitizeMcqMarkup(prompt.innerHTML),
+        options: options.map(({ correct, ...option }) => option),
+        answer: markedOptions[0].key,
+        explanation: ""
+      });
+    });
+
+    return { questions, issues, totalBlocks: containers.length };
+  }
+  function clearMcqHtmlQuiz() {
+    if (!activeMcqNoteId || !mcqHtmlMode) return;
+    state.mcqs[activeMcqNoteId] = [];
+    persist();
+    mcqHtmlMode = false;
+    activeMcqAnswers = {};
+    $("#mcqEditorSection").hidden = false;
     $("#mcqHtmlStatus").textContent = "";
     $("#clearMcqHtmlBtn").hidden = true;
+    $("#mcqHtmlFile").value = "";
+    $("#mcqQuizArea").innerHTML = "";
+    $("#mcqSaveStatus").textContent = "";
+    updateMcqCount();
   }
   function parseMcqText(raw) {
     const source = String(raw ?? "")
@@ -719,10 +790,11 @@ bodyFormat: "html",
     const note = state.notes.find(item => item.id === noteId);
     if (!note) return;
     activeMcqNoteId = noteId;
+    mcqHtmlMode = (state.mcqs[noteId] || []).some(question => question.source === "html");
     activeMcqAnswers = {};
     $("#mcqNoteTitle").textContent = `${note.title} — MCQ`;
     $("#mcqNoteTopic").textContent = note.topic || "Uncategorized";
-    $("#mcqInput").value = (state.mcqs[noteId] || []).map((q, i) => [
+    $("#mcqInput").value = mcqHtmlMode ? "" : (state.mcqs[noteId] || []).map((q, i) => [
       `${i + 1}. ${q.question}`,
       ...q.options.map(option => `${option.key}) ${option.text}`),
       ...(q.answer ? [`Answer: ${q.answer}`] : []),
@@ -732,7 +804,11 @@ bodyFormat: "html",
     mcqEditorDirty = false;
     $("#mcqSaveStatus").textContent = "";
     $("#mcqQuizArea").innerHTML = "";
-    clearMcqHtmlPreview();
+    $("#mcqEditorSection").hidden = mcqHtmlMode;
+    $("#mcqHtmlStatus").textContent = mcqHtmlMode
+      ? `${(state.mcqs[noteId] || []).length} HTML questions loaded. Questions and answers are hidden until you start practice.`
+      : "";
+    $("#clearMcqHtmlBtn").hidden = !mcqHtmlMode;
     renderMcqHistory();
     updateMcqCount();
     $("#startMcqBtn").disabled = !(state.mcqs[noteId] || []).length && !$("#mcqInput").value.trim();
@@ -742,7 +818,9 @@ bodyFormat: "html",
   function updateMcqCount() {
     const count = (state.mcqs[activeMcqNoteId] || []).length;
     const unkeyed = (state.mcqs[activeMcqNoteId] || []).filter(question => !question.answer).length;
-    $("#mcqQuestionCount").textContent = `${count} ${count === 1 ? "question" : "questions"} saved${unkeyed ? ` · ${unkeyed} without answer key` : ""}.`;
+    $("#mcqQuestionCount").textContent = mcqHtmlMode
+      ? `${count} HTML ${count === 1 ? "question" : "questions"} loaded.`
+      : `${count} ${count === 1 ? "question" : "questions"} saved${unkeyed ? ` · ${unkeyed} without answer key` : ""}.`;
     $("#startMcqBtn").disabled = count === 0;
   }
   function saveMcqs() {
@@ -777,13 +855,13 @@ bodyFormat: "html",
   function startMcqPractice() {
     const input = $("#mcqInput");
     const raw = input.value.trim();
-    if (!raw) {
+    if (!mcqHtmlMode && !raw) {
       $("#mcqSaveStatus").textContent = "Please paste your questions first.";
       input.focus();
       return;
     }
     // Start Practice also saves the current textarea content automatically.
-    if (mcqEditorDirty || raw !== mcqSavedText || !(state.mcqs[activeMcqNoteId] || []).length) {
+    if (!mcqHtmlMode && (mcqEditorDirty || raw !== mcqSavedText || !(state.mcqs[activeMcqNoteId] || []).length)) {
       const result = parseMcqText(input.value);
       if (!result.questions.length) {
         $("#mcqSaveStatus").textContent = `No valid questions found. ${result.issues.join(" ") || "Check the question and option format."}`;
@@ -805,7 +883,7 @@ bodyFormat: "html",
     activeMcqAnswers = {};
     const allowPartial = $("#mcqAllowPartial").checked;
     const form = $("#mcqQuizArea");
-    form.innerHTML = `<form id="mcqPracticeForm"><p class="mcq-progress" id="mcqProgress">Question 0 of ${questions.length} answered</p>${questions.map((q, index) => `<fieldset class="mcq-question"><legend>${index + 1}. ${escapeHTML(q.question)}</legend>${q.options.map(option => `<label class="mcq-option"><input type="radio" name="${escapeHTML(q.id)}" value="${escapeHTML(option.key)}"><span><strong>${escapeHTML(option.key)}.</strong> ${escapeHTML(option.text)}</span></label>`).join("")}</fieldset>`).join("")}<button class="primary-button" type="submit">Submit Quiz</button></form>`;
+    form.innerHTML = `<form id="mcqPracticeForm"><p class="mcq-progress" id="mcqProgress">Question 0 of ${questions.length} answered</p>${questions.map((q, index) => `<fieldset class="mcq-question"><legend>${index + 1}. ${q.questionHtml ? sanitizeMcqMarkup(q.questionHtml) : escapeHTML(q.question)}</legend>${q.options.map(option => `<label class="mcq-option"><input type="radio" name="${escapeHTML(q.id)}" value="${escapeHTML(option.key)}"><span><strong>${escapeHTML(option.key)}.</strong> ${option.html ? sanitizeMcqMarkup(option.html) : escapeHTML(option.text)}</span></label>`).join("")}</fieldset>`).join("")}<button class="primary-button" type="submit">Submit Quiz</button></form>`;
     const practiceForm = $("#mcqPracticeForm");
     practiceForm.addEventListener("change", () => {
       const answered = questions.filter(q => practiceForm.querySelector(`input[name="${CSS.escape(q.id)}"]:checked`)).length;
@@ -824,10 +902,14 @@ bodyFormat: "html",
         const hasKey = Boolean(q.answer);
         const correct = hasKey && chosen === q.answer;
         if (hasKey) { graded++; if (correct) score++; }
-        const correctText = hasKey ? (q.options.find(option => option.key === q.answer)?.text || "") : "";
+        const correctOption = hasKey ? q.options.find(option => option.key === q.answer) : null;
+        const correctText = correctOption
+          ? correctOption.html ? sanitizeMcqMarkup(correctOption.html) : escapeHTML(correctOption.text)
+          : "";
         const badge = !hasKey ? `<span class="mcq-badge is-ungraded">Not graded</span>` : !chosen ? `<span class="mcq-badge is-unanswered">Unanswered</span>` : correct ? `<span class="mcq-badge is-correct">Correct</span>` : `<span class="mcq-badge is-wrong">Incorrect</span>`;
-        const answerLine = hasKey ? `<p>Your answer: ${escapeHTML(chosen || "—")} · Correct answer: ${escapeHTML(q.answer)} — ${escapeHTML(correctText)}</p>` : `<p>Your answer: ${escapeHTML(chosen || "—")} · This question has no answer key and was not graded.</p>`;
-        return `<div class="mcq-review-item ${!hasKey || !chosen ? "is-ungraded" : correct ? "is-correct" : "is-wrong"}"><strong>${index + 1}. ${escapeHTML(q.question)}</strong> ${badge}${answerLine}${q.explanation ? `<p>${escapeHTML(q.explanation)}</p>` : ""}</div>`;
+        const answerLine = hasKey ? `<p>Your answer: ${escapeHTML(chosen || "—")} · Correct answer: ${escapeHTML(q.answer)} — ${correctText}</p>` : `<p>Your answer: ${escapeHTML(chosen || "—")} · This question has no answer key and was not graded.</p>`;
+        const questionContent = q.questionHtml ? sanitizeMcqMarkup(q.questionHtml) : escapeHTML(q.question);
+        return `<div class="mcq-review-item ${!hasKey || !chosen ? "is-ungraded" : correct ? "is-correct" : "is-wrong"}"><strong>${index + 1}. ${questionContent}</strong> ${badge}${answerLine}${q.explanation ? `<p>${escapeHTML(q.explanation)}</p>` : ""}</div>`;
       }).join("");
       const percentage = graded ? Math.round(score / graded * 100) : 0;
       const timestamp = new Date().toISOString();
@@ -904,11 +986,23 @@ bodyFormat: "html",
         .map((q, i) => {
           const seen = new Set();
           const options = q.options.filter(o => o && /^[A-D]$/.test(String(o.key || "").toUpperCase()) && typeof o.text === "string" && o.text.trim())
-            .map(o => ({ key: String(o.key).toUpperCase(), text: o.text.trim() }))
+            .map(o => ({
+              key: String(o.key).toUpperCase(),
+              text: o.text.trim(),
+              ...(typeof o.html === "string" ? { html: sanitizeMcqMarkup(o.html) } : {})
+            }))
             .filter(o => !seen.has(o.key) && seen.add(o.key));
           const answer = String(q.answer || "").toUpperCase();
           if (options.length < 2) return null;
-          return { id: `q_${i + 1}`, question: q.question.trim(), options, answer: options.some(o => o.key === answer) ? answer : "", explanation: typeof q.explanation === "string" ? q.explanation : "" };
+          return {
+            id: `q_${i + 1}`,
+            question: q.question.trim(),
+            ...(typeof q.questionHtml === "string" ? { questionHtml: sanitizeMcqMarkup(q.questionHtml) } : {}),
+            ...(q.source === "html" ? { source: "html" } : {}),
+            options,
+            answer: options.some(o => o.key === answer) ? answer : "",
+            explanation: typeof q.explanation === "string" ? q.explanation : ""
+          };
         }).filter(Boolean);
       if (valid.length) cleaned[noteId] = valid;
     }
@@ -1010,13 +1104,12 @@ bodyFormat: "html",
   $("#workspaceAddTopic").addEventListener("click", () => $("#addTopicBtn").click());
   $("#closeMcqBtn").addEventListener("click", () => mcqDialog.close());
   $("#mcqHtmlUploadBtn").addEventListener("click", () => $("#mcqHtmlFile").click());
-  $("#clearMcqHtmlBtn").addEventListener("click", clearMcqHtmlPreview);
+  $("#clearMcqHtmlBtn").addEventListener("click", clearMcqHtmlQuiz);
   $("#mcqHtmlFile").addEventListener("change", async event => {
     const input = event.currentTarget;
     const file = input.files[0];
     if (!file) return;
     const status = $("#mcqHtmlStatus");
-    const preview = $("#mcqHtmlPreview");
     const isHtmlFile = /\.html?$/i.test(file.name);
     if (!isHtmlFile) {
       status.textContent = "Choose an .html or .htm file.";
@@ -1030,21 +1123,26 @@ bodyFormat: "html",
     }
     try {
       const source = await file.text();
-      const sanitized = DOMPurify.sanitize(source, { WHOLE_DOCUMENT: true });
-      const previewDocument = new DOMParser().parseFromString(sanitized, "text/html");
-      previewDocument.querySelectorAll("base, link").forEach(element => element.remove());
-      const policy = previewDocument.createElement("meta");
-      policy.httpEquiv = "Content-Security-Policy";
-      policy.content = "default-src 'none'; img-src data: blob: https:; style-src 'unsafe-inline'; font-src data:; media-src data: blob: https:; form-action 'none'; base-uri 'none'";
-      previewDocument.head.prepend(policy);
-      previewDocument.head.insertAdjacentHTML("beforeend", "<style>html,body{min-height:100%;}body{margin:16px;font:14px/1.5 system-ui,sans-serif;}img,svg,video{max-width:100%;height:auto;}table{max-width:100%;border-collapse:collapse;}</style>");
-      preview.srcdoc = `<!doctype html>${previewDocument.documentElement.outerHTML}`;
-      preview.hidden = false;
+      const result = parseMcqHtml(source);
+      if (!result.questions.length) {
+        status.textContent = `No valid questions found. ${result.issues.join(" ") || "Use fieldsets with a legend, at least two labeled radio options, and exactly one correct marker per question."}`;
+        return;
+      }
+      state.mcqs[activeMcqNoteId] = result.questions;
+      persist();
+      mcqHtmlMode = true;
+      mcqSavedText = "";
+      mcqEditorDirty = false;
+      activeMcqAnswers = {};
+      $("#mcqEditorSection").hidden = true;
+      $("#mcqQuizArea").innerHTML = "";
+      $("#mcqSaveStatus").textContent = "";
+      updateMcqCount();
       $("#clearMcqHtmlBtn").hidden = false;
-      status.textContent = `Previewing ${file.name}. Scripts, linked stylesheets, and relative files are disabled.`;
+      status.textContent = `${result.questions.length} question(s) loaded from ${file.name}. Questions and answers are hidden until you start practice.${result.issues.length ? ` ${result.issues.length} invalid block(s) were skipped.` : ""}`;
     } catch (error) {
-      status.textContent = `Could not preview ${file.name}: ${error.message}`;
-      showToast("Could not preview the selected HTML file");
+      status.textContent = `Could not load ${file.name}: ${error.message}`;
+      showToast("Could not load the selected HTML quiz");
     } finally {
       input.value = "";
     }

@@ -697,5 +697,3 @@ body.dark-theme .drawio-host {
 .mcq-html-section > p { color: var(--muted, #7b849d); font-size: 13px; line-height: 1.5; }
 .mcq-html-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .mcq-html-status { color: var(--muted, #77809a); font-size: 12px; }
-.mcq-html-preview { display: block; width: 100%; height: min(65vh, 640px); min-height: 320px; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
-@media (max-width: 600px) { .mcq-html-preview { height: 55vh; min-height: 260px; } }
