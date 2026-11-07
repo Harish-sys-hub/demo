@@ -219,7 +219,7 @@ Explanation: An API defines how software components communicate."></textarea>
     </section>
     <section class="mcq-html-section">
       <h3>Upload an HTML quiz</h3>
-      <p>Questions and answers stay hidden after upload. Click Start practice to begin. Use one fieldset per question, a legend for the prompt, and 2–4 labeled radio options; mark exactly one correct radio input or label with <code>data-correct="true"</code>. Uploading replaces this note's current question bank. Scripts are never run; use embedded content because linked styles and relative assets are not imported.</p>
+      <p>Questions and answers stay hidden after upload. Click Start practice to begin. The importer recognizes fieldsets, question containers, and radio-button groups with 2–4 options. Mark the correct option with <code>data-correct="true"</code> or <code>class="correct"</code>, or set the question container's <code>data-answer="A"</code>. Uploading replaces this note's current question bank. Scripts are never run; linked styles and relative assets are not imported.</p>
       <div class="mcq-html-actions">
         <button class="secondary-button" id="mcqHtmlUploadBtn" type="button">Choose HTML quiz</button>
         <button class="secondary-button" id="clearMcqHtmlBtn" type="button" hidden>Remove uploaded quiz</button>

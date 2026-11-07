@@ -664,45 +664,129 @@ bodyFormat: "html",
   function parseMcqHtml(source) {
     const document = new DOMParser().parseFromString(source, "text/html");
     const containers = [...document.querySelectorAll("fieldset")];
+    const questionSelector = '[data-question], [data-question-text], .question, [class*="question"], [id*="question"], article';
+    const optionSelector = '[data-option], .option, [class*="option"], li, button';
+    const correctSelector = '[data-correct="true"], [data-answer="true"], .correct, .right, .is-correct';
+    const seenContainers = new Set(containers);
+
+    const candidates = [...document.querySelectorAll(questionSelector)].filter(container => {
+      if (containers.some(existing => existing.contains(container))) return false;
+      const radios = [...container.querySelectorAll('input[type="radio"]')];
+      const options = [...container.querySelectorAll(optionSelector)].filter(option =>
+        !option.querySelector(optionSelector) && option.textContent.trim()
+      );
+      return radios.length >= 2 || options.length >= 2;
+    });
+    candidates.filter(container => !candidates.some(other =>
+      other !== container && container.contains(other)
+    )).forEach(container => {
+      containers.push(container);
+      seenContainers.add(container);
+    });
+
+    const ungroupedRadios = [...document.querySelectorAll('input[type="radio"]')].filter(radio =>
+      !containers.some(container => container.contains(radio))
+    );
+    const groups = new Map();
+    ungroupedRadios.forEach(radio => {
+      const key = radio.name || radio.closest(questionSelector) || radio.parentElement;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(radio);
+    });
+    groups.forEach(radios => {
+      if (radios.length < 2) return;
+      let container = radios[0].parentElement;
+      while (container && !radios.every(radio => container.contains(radio))) container = container.parentElement;
+      while (container && container !== document.body) {
+        const namedRadios = [...container.querySelectorAll('input[type="radio"]')].filter(radio => radio.name === radios[0].name);
+        if (namedRadios.length === radios.length &&
+            container.querySelector("legend, [data-question-text], .question-text, h1, h2, h3, h4, p")) break;
+        container = container.parentElement;
+      }
+      if (container && !seenContainers.has(container)) {
+        containers.push(container);
+        seenContainers.add(container);
+      }
+    });
+
     const questions = [];
     const issues = [];
 
     containers.forEach((container, questionIndex) => {
-      const prompt = container.querySelector("legend, [data-question-text], .question-text");
       const radios = [...container.querySelectorAll('input[type="radio"]')];
-      if (!prompt || radios.length < 2) {
-        issues.push(`Question ${questionIndex + 1} needs a legend and at least two radio options.`);
+      let prompt = container.querySelector("legend, [data-question-text], .question-text, h1, h2, h3, h4");
+      let optionNodes = [];
+
+      if (radios.length) {
+        optionNodes = radios.map(radio =>
+          radio.closest("label") ||
+          [...container.querySelectorAll("label[for]")].find(label => label.htmlFor === radio.id) ||
+          radio.parentElement
+        ).filter(Boolean);
+      } else {
+        optionNodes = [...container.querySelectorAll(optionSelector)].filter(option =>
+          !option.querySelector(optionSelector) && option.textContent.trim()
+        );
+      }
+      optionNodes = [...new Set(optionNodes)];
+
+      if (!prompt) {
+        prompt = [...container.children].find(child =>
+          child.textContent.trim() && !optionNodes.some(option => child === option || child.contains(option))
+        );
+      }
+      if (!prompt && !radios.length && optionNodes.length >= 3) prompt = optionNodes.shift();
+      if (!prompt || optionNodes.length < 2) {
+        issues.push(`Question ${questionIndex + 1} needs identifiable question text and at least two options.`);
         return;
       }
-      if (radios.length > 4) {
-        issues.push(`Question ${questionIndex + 1} has more than four radio options.`);
+      if (optionNodes.length > 4) {
+        issues.push(`Question ${questionIndex + 1} has more than four options.`);
         return;
       }
 
-      const options = radios.map((radio, optionIndex) => {
-        const label = radio.closest("label") || [...container.querySelectorAll("label[for]")].find(item => item.htmlFor === radio.id);
-        if (!label) return null;
-        const clone = label.cloneNode(true);
+      const options = optionNodes.map((node, optionIndex) => {
+        const radio = node.matches('input[type="radio"]')
+          ? node
+          : node.querySelector('input[type="radio"]');
+        const clone = node.cloneNode(true);
         clone.querySelectorAll("input, button").forEach(element => element.remove());
-        const key = String.fromCharCode(65 + optionIndex);
-        const markedCorrect = radio.dataset.correct?.toLowerCase() === "true" ||
-          label.dataset.correct?.toLowerCase() === "true" ||
-          label.classList.contains("correct") || radio.classList.contains("correct");
+        if (node.matches('input[type="radio"]')) clone.remove();
+        const text = clone.textContent.trim() || node.getAttribute("value") || "";
+        const markedCorrect = [node, radio, node.closest(correctSelector)].some(element =>
+          element && (
+            element.dataset?.correct?.toLowerCase() === "true" ||
+            element.dataset?.answer?.toLowerCase() === "true" ||
+            element.matches?.(correctSelector)
+          )
+        );
         return {
-          key,
-          text: clone.textContent.trim(),
-          html: sanitizeMcqMarkup(clone.innerHTML),
+          key: String.fromCharCode(65 + optionIndex),
+          text,
+          html: sanitizeMcqMarkup(clone.innerHTML || text),
           correct: markedCorrect
         };
       });
 
-      if (options.some(option => !option || !option.text)) {
-        issues.push(`Question ${questionIndex + 1} has an option without a label or text.`);
+      if (options.some(option => !option.text)) {
+        issues.push(`Question ${questionIndex + 1} has an option without text.`);
         return;
       }
+
+      const answerElement = container.querySelector("[data-answer], .answer-key, .correct-answer, [class*='answer']");
+      const answerValue = container.dataset.answer || answerElement?.dataset.answer ||
+        answerElement?.textContent.match(/(?:answer|correct)\s*[:=-]?\s*([A-D])/i)?.[1] || "";
       const markedOptions = options.filter(option => option.correct);
-      if (markedOptions.length !== 1) {
-        issues.push(`Question ${questionIndex + 1} must mark exactly one correct option with data-correct="true".`);
+      if (markedOptions.length === 0 && answerValue) {
+        const answer = answerValue.trim().toUpperCase();
+        const answerIndex = /^[A-D]$/.test(answer)
+          ? answer.charCodeAt(0) - 65
+          : options.findIndex(option => option.text.toLowerCase() === answerValue.trim().toLowerCase());
+        if (answerIndex >= 0 && answerIndex < options.length) options[answerIndex].correct = true;
+      }
+      const correctOptions = options.filter(option => option.correct);
+      if (correctOptions.length !== 1) {
+        issues.push(`Question ${questionIndex + 1} must identify exactly one correct option (for example with data-correct="true" or a data-answer value).`);
         return;
       }
       questions.push({
@@ -711,7 +795,7 @@ bodyFormat: "html",
         question: prompt.textContent.trim(),
         questionHtml: sanitizeMcqMarkup(prompt.innerHTML),
         options: options.map(({ correct, ...option }) => option),
-        answer: markedOptions[0].key,
+        answer: correctOptions[0].key,
         explanation: ""
       });
     });
@@ -1125,7 +1209,7 @@ bodyFormat: "html",
       const source = await file.text();
       const result = parseMcqHtml(source);
       if (!result.questions.length) {
-        status.textContent = `No valid questions found. ${result.issues.join(" ") || "Use fieldsets with a legend, at least two labeled radio options, and exactly one correct marker per question."}`;
+        status.textContent = `No valid questions found. ${result.issues.join(" ") || 'Use question containers with question text, 2–4 options, and a correct answer marked by data-correct="true", class="correct", or data-answer="A".'}`;
         return;
       }
       state.mcqs[activeMcqNoteId] = result.questions;

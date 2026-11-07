@@ -20,6 +20,6 @@ The main LearnSpace state is authoritative. Per-note `mcq_history_<noteId>` keys
 
 ## Importing an HTML quiz
 - Choose an `.html` or `.htm` file (up to 2 MB) from a note's MCQ dialog. The import replaces that note's current question bank and is saved with the local LearnSpace state and backup.
-- Use one `<fieldset>` per question, a `<legend>` prompt, and 2–4 labeled radio inputs. Mark exactly one correct input or its label with `data-correct="true"`. Example: `<label><input type="radio" name="q1" data-correct="true"> Paris</label>`.
+- Use one question container per question with visible question text and 2–4 options. The importer recognizes fieldsets, common question containers (`.question`, `[data-question]`, question headings), and radio-button groups. Mark the correct option with `data-correct="true"` or `class="correct"`, or mark the question container with `data-answer="A"` (using the option's A/B/C/D position).
 - Imported prompts and options are hidden until **Start practice** is clicked. Submission uses the existing scoring, answer review, and attempt-history flow.
 - Uploaded scripts are never executed. Prompt/option markup is sanitized before display; linked stylesheets and relative assets are not imported. Use inline markup and embedded data images for portable content.
